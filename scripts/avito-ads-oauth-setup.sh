@@ -134,10 +134,53 @@ echo -e "${C_GREEN}[✓]${C_RESET} Сохранён в $TOKENS_FILE"
 
 echo ""
 echo -e "${C_YELLOW}Проверяю аккаунт...${C_RESET}"
+
+SANDBOX_ID=""
+if [ "$MODE" = "sandbox" ]; then
+  # В sandbox-режиме реальный accountID НЕ существует — нужно создать тестовый.
+  echo -e "${C_YELLOW}Sandbox-режим: создаю тестовый аккаунт под namespace=$AVITO_ADS_ACCOUNT_ID${C_RESET}"
+  NOW_DATE="$(date -u +'%Y-%m-%d')"
+  CREATE_RESP="$(curl -sS -X POST "$API_BASE/v1/account/$AVITO_ADS_ACCOUNT_ID" \
+    -H "Authorization: Bearer $ACCESS" \
+    -H 'Content-Type: application/json' \
+    --data "{
+      \"inn\": \"123456789012\",
+      \"shortName\": \"Sandbox $NOW_DATE\",
+      \"longName\": \"Тестовый аккаунт Avito Ads sandbox $NOW_DATE\",
+      \"ogrn\": \"123456789012345\",
+      \"legalAddress\": \"г. Москва, ул. Тестовая, д. 1\",
+      \"actualAddress\": \"г. Москва, ул. Тестовая, д. 1\",
+      \"legalType\": \"ip\",
+      \"contact\": { \"name\": \"Sandbox Test\", \"phone\": \"+78005553535\" }
+    }")"
+  SANDBOX_ID="$(printf '%s' "$CREATE_RESP" | jq -r '.accountID // empty')"
+
+  if [ -n "$SANDBOX_ID" ]; then
+    # Записать в .env
+    if grep -q '^AVITO_ADS_SANDBOX_ACCOUNT_ID=' "$ENV_FILE" 2>/dev/null; then
+      TMP="$(mktemp)"
+      awk -v v="$SANDBOX_ID" 'BEGIN{FS=OFS="="} $1=="AVITO_ADS_SANDBOX_ACCOUNT_ID"{print "AVITO_ADS_SANDBOX_ACCOUNT_ID="v; next} {print}' "$ENV_FILE" > "$TMP"
+      mv "$TMP" "$ENV_FILE"
+    else
+      echo "AVITO_ADS_SANDBOX_ACCOUNT_ID=$SANDBOX_ID" >> "$ENV_FILE"
+    fi
+    chmod 600 "$ENV_FILE"
+    echo -e "${C_GREEN}[✓]${C_RESET} Тестовый аккаунт создан: $SANDBOX_ID (живёт до 00:00 UTC)"
+    QUERY_ID="$SANDBOX_ID"
+  else
+    echo -e "${C_YELLOW}[!] Не удалось создать тестовый аккаунт (возможно, дневной лимит 1/сутки исчерпан):${C_RESET}"
+    printf '%s\n' "$CREATE_RESP" | head -c 300
+    echo ""
+    QUERY_ID="$AVITO_ADS_ACCOUNT_ID"
+  fi
+else
+  QUERY_ID="$AVITO_ADS_ACCOUNT_ID"
+fi
+
 ACC_INFO="$(curl -sS -H "Authorization: Bearer $ACCESS" -H 'Accept: application/json' \
-  "$API_BASE/v1/account/$AVITO_ADS_ACCOUNT_ID")"
+  "$API_BASE/v1/account/$QUERY_ID")"
 BAL_INFO="$(curl -sS -H "Authorization: Bearer $ACCESS" -H 'Accept: application/json' \
-  "$API_BASE/v1/account/$AVITO_ADS_ACCOUNT_ID/balance")"
+  "$API_BASE/v1/account/$QUERY_ID/balance")"
 
 SHORT_NAME="$(printf '%s' "$ACC_INFO" | jq -r '.account.shortName // empty')"
 INN="$(printf '%s' "$ACC_INFO" | jq -r '.account.inn // empty')"
@@ -152,7 +195,10 @@ echo ""
 if [ -n "$SHORT_NAME" ]; then
   echo "  Аккаунт:        $SHORT_NAME (ИНН $INN)"
 fi
-echo "  accountID:      $AVITO_ADS_ACCOUNT_ID"
+echo "  accountID:      $AVITO_ADS_ACCOUNT_ID  (боевой)"
+if [ -n "$SANDBOX_ID" ]; then
+  echo "  Sandbox ID:     $SANDBOX_ID  (живёт до 00:00 UTC, обнови завтра: bash scripts/sandbox-refresh-account.sh)"
+fi
 echo "  Режим:          $MODE  ($API_BASE)"
 echo "  Баланс:         $BAL ₽"
 echo "  Бонусный:       $BAL_BONUS ₽"

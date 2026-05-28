@@ -55,7 +55,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\skills\avito-
 - **Auth flow:** OAuth 2.0 client_credentials. `client_id + client_secret → access_token (24h TTL)`. Refresh-токена нет — при истечении просто перевыпускается через client_credentials заново. Токены в `~/.claude/secrets/avito-ads-tokens` (chmod 600). `cli.py` делает auto-refresh при 401.
 - **Universal CLI:** `cli.py` принимает любой HTTP method + path + params + body → возвращает JSON. Плейсхолдер `{accountID}` в path подставляется автоматически из `.env`.
 - **Тонкие обёртки:** `list-campaigns.sh`, `balance.sh`, `change-group-budget.sh` и др. — для частых сценариев. AI вызывает их напрямую без раздумий над форматом body.
-- **Песочница по умолчанию:** `AVITO_ADS_MODE=sandbox` — запросы не тратят API-баллы. Когда готов — поменяй на `prod` в `.env`.
+- **Песочница по умолчанию:** `AVITO_ADS_MODE=sandbox` — запросы не тратят API-баллы. Мастер сам создаёт тестовый аккаунт и сохраняет его ID в `AVITO_ADS_SANDBOX_ACCOUNT_ID`. Sandbox-аккаунты живут до 00:00 UTC — обновляй через `bash scripts/sandbox-refresh-account.sh` (лимит 1/сутки). При переключении на `prod` — `cli.py` и `.sh` автоматически используют `AVITO_ADS_ACCOUNT_ID` (боевой).
 - **Безопасность:** `client_secret` никогда не передаётся через CLI-флаги, только через `config/.env`. Токены не попадают в shell history.
 
 ## Готовые сценарии

@@ -15,15 +15,19 @@ set -e
 
 SECRETS_DIR="$HOME/.claude/secrets"
 TOKENS_FILE="$SECRETS_DIR/avito-ads-tokens"
-SKILL_DIR="${AVITO_ADS_SKILL_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+# BASH_SOURCE works whether _common.sh is executed or sourced;
+# $0 would point to the calling shell when sourced via `. _common.sh`.
+SKILL_DIR="${AVITO_ADS_SKILL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 ENV_FILE="$SKILL_DIR/config/.env"
 
 mkdir -p "$SECRETS_DIR"
 chmod 700 "$SECRETS_DIR" 2>/dev/null || true
 
 CYAN=$'\033[0;36m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'; RED=$'\033[0;31m'; RST=$'\033[0m'
-ok()    { echo "${GREEN}✓ $*${RST}"; }
-warn()  { echo "${YELLOW}⚠ $*${RST}"; }
+# All status output goes to stderr so it doesn't pollute the JSON stream
+# coming out of api_request (which is piped into jq in wrappers).
+ok()    { echo "${GREEN}✓ $*${RST}" >&2; }
+warn()  { echo "${YELLOW}⚠ $*${RST}" >&2; }
 die()   { echo "${RED}✗ $*${RST}" >&2; exit 1; }
 
 # load_env: читает .env пользователя (client_id, client_secret, accountID, mode)
@@ -181,13 +185,48 @@ api_request() {
 
   if [ "$code" -ge 400 ]; then
     warn "HTTP $code: $url"
+    # Ensure downstream jq has parseable JSON even on empty error body
+    if [ -z "$body" ] || [ "$body" = " " ]; then
+      printf '{"__http_error__": %s, "body": ""}' "$code"
+      return
+    fi
+  fi
+  # Empty 2xx → return {} so .sh wrappers piping into jq don't crash
+  if [ -z "$body" ] || [ "$body" = " " ]; then
+    printf '{}'
+    return
   fi
   printf '%s' "$body"
 }
 
 # account_id: возвращает accountID из env (нужен почти во всех URL)
+# В sandbox-режиме предпочитает AVITO_ADS_SANDBOX_ACCOUNT_ID (тестовый аккаунт живёт до 00:00 UTC).
+# В prod-режиме всегда AVITO_ADS_ACCOUNT_ID (боевой кабинет).
 account_id() {
   load_env || die "Не найден $ENV_FILE"
-  [ -n "${AVITO_ADS_ACCOUNT_ID:-}" ] || die "AVITO_ADS_ACCOUNT_ID пустой в $ENV_FILE — пропиши accountID кабинета"
-  echo "$AVITO_ADS_ACCOUNT_ID"
+  local mode="${AVITO_ADS_MODE:-sandbox}"
+  if [ "$mode" = "sandbox" ]; then
+    local acc="${AVITO_ADS_SANDBOX_ACCOUNT_ID:-${AVITO_ADS_ACCOUNT_ID:-}}"
+    [ -n "$acc" ] || die "В sandbox-режиме ни AVITO_ADS_SANDBOX_ACCOUNT_ID, ни AVITO_ADS_ACCOUNT_ID не заполнены. Запусти: bash $SKILL_DIR/scripts/sandbox-refresh-account.sh"
+    echo "$acc"
+  else
+    [ -n "${AVITO_ADS_ACCOUNT_ID:-}" ] || die "AVITO_ADS_ACCOUNT_ID пустой в $ENV_FILE — пропиши accountID кабинета"
+    echo "$AVITO_ADS_ACCOUNT_ID"
+  fi
+}
+
+# upsert_env_var: записывает KEY=VALUE в $ENV_FILE, заменяя существующее или добавляя в конец
+upsert_env_var() {
+  local key="$1" value="$2"
+  [ -f "$ENV_FILE" ] || die "Не найден $ENV_FILE"
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    # Заменить (через временный файл — sed -i по-разному работает на macOS и Linux)
+    local tmp
+    tmp="$(mktemp)"
+    awk -v k="$key" -v v="$value" 'BEGIN{FS=OFS="="} $1==k{print k"="v; next} {print}' "$ENV_FILE" > "$tmp"
+    mv "$tmp" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
 }

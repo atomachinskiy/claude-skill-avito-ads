@@ -56,6 +56,12 @@ sandbox: https://api.avito.ru/ads-sandbox/v1/...
 
 Режим переключается через `AVITO_ADS_MODE` в `config/.env` (`sandbox` | `prod`). По умолчанию — sandbox.
 
+**Дуальный accountID в .env:**
+- `AVITO_ADS_ACCOUNT_ID` — боевой ID кабинета (стабильный)
+- `AVITO_ADS_SANDBOX_ACCOUNT_ID` — ID тестового аккаунта в песочнице (живёт до 00:00 UTC)
+
+`cli.py` и `.sh`-обёртки автоматически подставляют `SANDBOX_ACCOUNT_ID` когда `MODE=sandbox`, и `ACCOUNT_ID` когда `MODE=prod`. Мастер настройки создаёт тестовый аккаунт автоматически при выборе sandbox. Для ежедневного обновления — `bash scripts/sandbox-refresh-account.sh` (лимит 1 тестовый в сутки).
+
 ### Auth flow (OAuth 2.0 client_credentials)
 
 ```
@@ -163,9 +169,10 @@ scripts/
 ├── cli.py                           # Универсальный CLI: любой HTTP method + path
 ├── avito-ads-launch-wizard.sh       # macOS/Linux обёртка которая открывает мастер в отдельном окне
 ├── avito-ads-launch-wizard.ps1      # Windows-версия (PowerShell)
-├── avito-ads-oauth-setup.sh         # Интерактивный мастер первичной настройки (.sh)
+├── avito-ads-oauth-setup.sh         # Интерактивный мастер первичной настройки (.sh) — auto-создаёт sandbox-аккаунт
 ├── avito-ads-oauth-setup.ps1        # Интерактивный мастер первичной настройки (.ps1)
 ├── auth-refresh.sh                  # Ручное обновление access_token
+├── sandbox-refresh-account.sh       # Создать свежий sandbox-аккаунт (запускай ежедневно в sandbox-режиме)
 │
 ├── account.sh                       # Реквизиты аккаунта
 ├── balance.sh                       # Баланс + бонусы

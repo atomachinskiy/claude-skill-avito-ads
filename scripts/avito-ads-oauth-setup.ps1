@@ -117,10 +117,57 @@ Write-Host "[✓] Токен получен и сохранён в $TokensFile" 
 
 Write-Host ''
 Write-Host 'Проверяю аккаунт...' -ForegroundColor Yellow
+
+$SandboxId = ''
+$QueryId = $AccountId
+
+if ($Mode -eq 'sandbox') {
+    Write-Host "Sandbox-режим: создаю тестовый аккаунт под namespace=$AccountId" -ForegroundColor Yellow
+    $nowDate = (Get-Date -Format 'yyyy-MM-dd')
+    $createBody = @{
+        inn = '123456789012'
+        shortName = "Sandbox $nowDate"
+        longName = "Тестовый аккаунт Avito Ads sandbox $nowDate"
+        ogrn = '123456789012345'
+        legalAddress = 'г. Москва, ул. Тестовая, д. 1'
+        actualAddress = 'г. Москва, ул. Тестовая, д. 1'
+        legalType = 'ip'
+        contact = @{ name = 'Sandbox Test'; phone = '+78005553535' }
+    } | ConvertTo-Json -Compress
+
+    try {
+        $createResp = Invoke-RestMethod -Method POST -Uri "$ApiBase/v1/account/$AccountId" `
+            -Headers @{ Authorization = "Bearer $Access"; Accept = 'application/json'; 'Content-Type' = 'application/json' } `
+            -Body $createBody
+        $SandboxId = $createResp.accountID
+    } catch {
+        Write-Host "[!] Не удалось создать тестовый аккаунт (возможно, дневной лимит 1/сутки исчерпан): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    if ($SandboxId) {
+        # Записать в .env
+        $envLines = Get-Content $EnvFile
+        $newLines = @()
+        $found = $false
+        foreach ($l in $envLines) {
+            if ($l -match '^AVITO_ADS_SANDBOX_ACCOUNT_ID=') {
+                $newLines += "AVITO_ADS_SANDBOX_ACCOUNT_ID=$SandboxId"
+                $found = $true
+            } else {
+                $newLines += $l
+            }
+        }
+        if (-not $found) { $newLines += "AVITO_ADS_SANDBOX_ACCOUNT_ID=$SandboxId" }
+        Set-Content -Path $EnvFile -Value $newLines -Encoding UTF8
+        Write-Host "[✓] Тестовый аккаунт создан: $SandboxId (живёт до 00:00 UTC)" -ForegroundColor Green
+        $QueryId = $SandboxId
+    }
+}
+
 try {
-    $accResp = Invoke-RestMethod -Method GET -Uri "$ApiBase/v1/account/$AccountId" `
+    $accResp = Invoke-RestMethod -Method GET -Uri "$ApiBase/v1/account/$QueryId" `
         -Headers @{ Authorization = "Bearer $Access"; Accept = 'application/json' }
-    $balResp = Invoke-RestMethod -Method GET -Uri "$ApiBase/v1/account/$AccountId/balance" `
+    $balResp = Invoke-RestMethod -Method GET -Uri "$ApiBase/v1/account/$QueryId/balance" `
         -Headers @{ Authorization = "Bearer $Access"; Accept = 'application/json' }
 
     $shortName = $accResp.account.shortName
@@ -137,7 +184,10 @@ Write-Host '  ✅ Avito Реклама API настроен и работает'
 Write-Host '═══════════════════════════════════════════════════════════════' -ForegroundColor Green
 Write-Host ''
 if ($shortName) { Write-Host "  Аккаунт:        $shortName (ИНН $inn)" }
-Write-Host "  accountID:      $AccountId"
+Write-Host "  accountID:      $AccountId  (боевой)"
+if ($SandboxId) {
+    Write-Host "  Sandbox ID:     $SandboxId  (живёт до 00:00 UTC, обнови завтра)"
+}
 Write-Host "  Режим:          $Mode  ($ApiBase)"
 if ($balance -ne $null) { Write-Host "  Баланс:         $balance ₽" }
 if ($bonus   -ne $null) { Write-Host "  Бонусный:       $bonus ₽" }

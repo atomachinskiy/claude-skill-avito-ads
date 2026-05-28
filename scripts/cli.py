@@ -146,16 +146,28 @@ def get_access_token(force=False):
 
 
 def _resolve_path(path):
-    """Substitute {accountID} placeholder from .env if present."""
+    """Substitute {accountID} placeholder from .env if present.
+
+    Picks AVITO_ADS_SANDBOX_ACCOUNT_ID when mode=sandbox (test account expires daily),
+    otherwise AVITO_ADS_ACCOUNT_ID (prod cabinet ID).
+    """
     if '{accountID}' not in path:
         return path
     env = _env()
-    acc = env.get('AVITO_ADS_ACCOUNT_ID')
-    if not acc:
-        sys.exit(
-            'AVITO_ADS_ACCOUNT_ID пустой в .env, но в path есть {accountID}. '
-            'Пропиши accountID или подставь его в path вручную.'
-        )
+    mode = env.get('AVITO_ADS_MODE', 'sandbox').lower()
+    if mode == 'sandbox':
+        acc = env.get('AVITO_ADS_SANDBOX_ACCOUNT_ID') or env.get('AVITO_ADS_ACCOUNT_ID')
+        if not acc:
+            sys.exit(
+                'Ни AVITO_ADS_SANDBOX_ACCOUNT_ID, ни AVITO_ADS_ACCOUNT_ID не заполнены в .env. '
+                f'Запусти: bash {SKILL_DIR}/scripts/sandbox-refresh-account.sh'
+            )
+    else:
+        acc = env.get('AVITO_ADS_ACCOUNT_ID')
+        if not acc:
+            sys.exit(
+                'AVITO_ADS_ACCOUNT_ID пустой в .env, но режим prod и в path есть {accountID}.'
+            )
     return path.replace('{accountID}', acc)
 
 
