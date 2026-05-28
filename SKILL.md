@@ -251,13 +251,26 @@ python3 scripts/cli.py POST /v1/account/{accountID}/create-advertiser --body-inl
 python3 scripts/cli.py POST /v1/account/{accountID}/create-contract --body-inline '{
   "advertiserId": 987654321,
   "type": "service",
-  "subject": "advertising_services",
+  "subject": "distribution",
+  "description": "direct_with_advertiser",
   "isReportingRequired": true,
   "date": "2025-01-15",
-  "number": "ДА-2025/01"
+  "number": "ДА-2025/01",
+  "intermediary": {
+    "shortName": "ООО Исполнитель",
+    "longName": "Общество с ограниченной ответственностью Исполнитель",
+    "inn": "7798765432",
+    "ogrn": "1177746999999",
+    "kpp": "779801001",
+    "legalAddress": "г. Москва, ул. Исполнителя, д. 1",
+    "actualAddress": "г. Москва, ул. Исполнителя, д. 1",
+    "legalType": "ul"
+  }
 }'
 # → { "id": 1122334455 }
 ```
+
+⚠️ **Field `intermediary` обязателен** для всех типов договоров когда не передан `parentId` — даже для `type: "service"`. Это поведение подтверждено sandbox-тестом, но в публичной документации не описано явно.
 
 Подробности по типам договоров и обязательным полям — в `references/ord.md`.
 

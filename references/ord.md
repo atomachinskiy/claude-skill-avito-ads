@@ -55,14 +55,31 @@ python3 scripts/cli.py POST /v1/account/{accountID}/create-advertiser --body-inl
 {
   "advertiserId": 987654321,
   "type": "service",
-  "subject": "advertising_services",
+  "subject": "distribution",
+  "description": "direct_with_advertiser",
   "isReportingRequired": true,
   "date": "2025-01-15",
-  "number": "ДА-2025/01"
+  "number": "ДА-2025/01",
+  "intermediary": {
+    "shortName": "ООО Исполнитель",
+    "longName": "Общество с ограниченной ответственностью Исполнитель",
+    "inn": "7798765432",
+    "ogrn": "1177746999999",
+    "kpp": "779801001",
+    "legalAddress": "г. Москва, ул. Исполнителя, д. 1",
+    "actualAddress": "г. Москва, ул. Исполнителя, д. 1",
+    "legalType": "ul"
+  }
 }
 ```
 
-Обязательные: `subject`, `isReportingRequired`, `date`, `number`. Запрещено: `cid`.
+Обязательные: `subject`, `description`, `isReportingRequired`, `date`, `number`, `intermediary` (если не передан `parentId`). Запрещено: `cid`.
+
+**`subject` enum** (по результатам sandbox-тестов): `distribution`, `mediation`. Полный список — в Swagger 3.0 спецификации (https://developers.avito.ru/api-catalog/ads/documentation → «Скачать swagger»).
+
+**`description` enum**: `direct_with_advertiser`, `advertiser_intermediary` и др. — см. Swagger.
+
+⚠️ **Важно:** `intermediary` обязательно для всех типов договоров когда не передан `parentId`, **даже для type=service** (хотя в публичной документации это явно не описано). Это поведение подтверждено sandbox-тестом 2026-05-28.
 
 ### intermediary — посреднический
 

@@ -69,6 +69,7 @@ def _save_tokens(access, expires_in, mode):
         '%Y-%m-%dT%H:%M:%SZ',
         time.gmtime(time.time() + int(expires_in)),
     )
+    os.makedirs(os.path.dirname(TOKENS_FILE), exist_ok=True)
     payload = (
         f'# Avito Реклама access token (issued {now})\n'
         f'# expires in {expires_in} seconds (≈ 24h)\n'
@@ -76,7 +77,6 @@ def _save_tokens(access, expires_in, mode):
         f'AVITO_ADS_TOKEN_EXPIRES_AT={expires_at}\n'
         f'AVITO_ADS_TOKEN_MODE={mode}\n'
     )
-    os.makedirs(os.path.dirname(TOKENS_FILE), exist_ok=True)
     with open(TOKENS_FILE, 'w') as f:
         f.write(payload)
     os.chmod(TOKENS_FILE, 0o600)
@@ -131,9 +131,9 @@ def _token_is_fresh():
         return False
     try:
         # Strip trailing Z and parse as UTC
-        from datetime import datetime, timedelta
-        exp_dt = datetime.strptime(exp.rstrip('Z'), '%Y-%m-%dT%H:%M:%S')
-        now = datetime.utcnow()
+        from datetime import datetime, timedelta, timezone
+        exp_dt = datetime.strptime(exp.rstrip('Z'), '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
         return (exp_dt - now) > timedelta(minutes=5)
     except Exception:
         return False
