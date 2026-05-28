@@ -1,0 +1,16 @@
+# Credentials and secrets — must never be committed
+config/.env
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
